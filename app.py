@@ -34,38 +34,43 @@ conn.commit()
 def webhook_kiwify():
     dados = request.json
 
-    if dados["type"] == "order.paid":
-        nome = dados["Order"]["customer_name"]
-        email = dados["Order"]["customer_email"]
-        pagamento = datetime.fromisoformat(dados["Order"]["paid_at"][:-1])
+    if dados.get("type") == "order.paid":
+        try:
+            nome = dados["Order"]["customer_name"]
+            email = dados["Order"]["customer_email"]
+            pagamento = datetime.fromisoformat(dados["Order"]["paid_at"][:-1])
 
-        hoje = datetime.now()
-        vencimento = hoje + timedelta(days=30)
-        chave = "advnc_" + secrets.token_urlsafe(32)
+            hoje = datetime.now()
+            vencimento = hoje + timedelta(days=30)
+            chave = "advnc_" + secrets.token_urlsafe(32)
 
-        # Verifica se o usuário já existe
-        cursor.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
-        resultado = cursor.fetchone()
+            # Verifica se o usuário já existe
+            cursor.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
+            resultado = cursor.fetchone()
 
-        if resultado:
-            # Atualiza se já existir
-            cursor.execute('''
-                UPDATE usuarios SET
-                    status = %s,
-                    data_pagamento = %s,
-                    proximo_vencimento = %s,
-                    data_ativacao = %s
-                WHERE email = %s
-            ''', ("✅ Ativo", pagamento, vencimento, hoje, email))
-        else:
-            # Cria novo se não existir
-            cursor.execute('''
-                INSERT INTO usuarios (nome, email, chave_api, status, data_ativacao, data_pagamento, proximo_vencimento)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ''', (nome, email, chave, "✅ Ativo", hoje, pagamento, vencimento))
+            if resultado:
+                # Atualiza se já existir
+                cursor.execute('''
+                    UPDATE usuarios SET
+                        status = %s,
+                        data_pagamento = %s,
+                        proximo_vencimento = %s,
+                        data_ativacao = %s
+                    WHERE email = %s
+                ''', ("✅ Ativo", pagamento, vencimento, hoje, email))
+            else:
+                # Cria novo se não existir
+                cursor.execute('''
+                    INSERT INTO usuarios (nome, email, chave_api, status, data_ativacao, data_pagamento, proximo_vencimento)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ''', (nome, email, chave, "✅ Ativo", hoje, pagamento, vencimento))
 
-        conn.commit()
-        return jsonify({"status": "pagamento processado com sucesso"}), 200
+            conn.commit()
+            return jsonify({"status": "pagamento processado com sucesso"}), 200
+
+        except Exception as e:
+            print("❌ Erro ao processar webhook:", e)
+            return jsonify({"status": "erro no processamento"}), 500
 
     return jsonify({"status": "evento ignorado"}), 400
 
